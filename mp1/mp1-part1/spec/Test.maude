@@ -1,0 +1,139 @@
+load State.maude
+
+***(
+	Useful Copy Pastes
+
+	P[1 | 2 | 5 | Dnil | M[tran | 15 | 10 | 20 | 1]]
+	P[2 | 2 | 5 | Dnil | M[tran | 15 | 10 | 20 | 1]]
+	P[3 | 2 | 5 | Dnil | M[tran | 15 | 10 | 20 | 1]]
+)
+
+set clear rules off .
+
+***(
+	Process testing
+)
+
+--- red P[1 | 2 | 5 | Mnil | M[0 | tran | 15 | 10 | 20 | 1]] :PP: 
+--- 	P[2 | 2 | 5 | Mnil | M[1 | tran | 15 | 10 | 20 | 1]] :PP: 
+--- 	P[3 | 2 | 5 | Mnil | M[2 | tran | 15 | 10 | 20 | 1]] .
+
+--- Rule being tested is: rl [ProcCrash] : PA :PP: PLiA =>  PLiA .
+--- search [10]
+--- 	P[1 | 2 | 5 | Mnil | M[0 | tran | 15 | 10 | 20 | 1]] :PP: 
+--- 	P[2 | 2 | 5 | Mnil | M[1 | tran | 15 | 10 | 20 | 1]] :PP: 
+--- 	P[3 | 2 | 5 | Mnil | M[2 | tran | 15 | 10 | 20 | 1]] 
+--- 	=>+ P:ProcList .
+
+***(
+	State testing
+)
+
+--- red propGetAllHelper?(2, M[0 | 0 | 0 | 0], R[0 | 1 | 1]) .
+--- red propGetAll?(2 1 0, M[0 | 0 | 0 | 0], getR(R[0 | 1 | 0] :M: M[0 | 0 | 0 | 0] :M: R[0 | 2 | 1] :M: R[0 | 3 | 2])) .
+
+--- red getR(Mnil) .
+--- red getR(R[0 | 1 | 1] :M: M[0 | 0 | 0 | 0] :M: R[0 | 2 | 1] :M: R[0 | 3 | 2] :M: S[0 | 0]) .
+--- red getR(R[0 | 1 | 1] :M: M[0 | 0 | 0 | 0] :M: R[0 | 2 | 1] :M: R[0 | 3 | 2]) .
+
+--- red getLargestSeqNum(0, 17, R[0 | 1 | 0] :M: R[1 | 2 | 0] :M: R[0 | 277 | 0] :M: R[3 | 4 | 0] :M: R[0 | 5 | 0]) .
+
+--- red getSmallestSeqMsg(Mnil, getM(M[0 | 0 | 50 | 3] :M: R[0 | 0 | 0] :M: S[0 | 0 | 0] :M: M[0 | 0 | 1 | 3] :M: M[0 | 0 | 2 | 0])) .
+--- red M[0 | 0 | 1 | 3] =M getSmallestSeqMsg(Mnil, getM(M[0 | 0 | 50 | 3] :M: R[0 | 0 | 0] :M: S[0 | 0 | 0] :M: M[0 | 0 | 1 | 3] :M: M[0 | 0 | 2 | 0])) .
+--- red deliverReady?(M[0 | 0 | 50 | 3] :M: R[0 | 0 | 0] :M: S[0 | 0 | 0] :M: M[0 | 0 | 1 | 3] :M: M[0 | 0 | 2 | 0]) .
+--- red deliverReady?(Mnil) .
+
+--- red getSmallestSeqMsg(Mnil, getM(R[0 | 2357136045 | 0] :M: R[0 | 2546248240 | 1] :M: R[0 | 3071714934 | 2] :M: M[0 | 0 | 3071714934 | 3])) .
+--- red deliverReady?(R[0 | 2357136045 | 0] :M: R[0 | 2546248240 | 1] :M: R[0 | 3071714934 | 2] :M: M[0 | 0 | 3071714934 | 3]) .
+
+--- search [100] init3 =>+ S:State .
+
+--- Search for 1 solution where a there exists some reply has been made to some message
+--- search [2] init3 =>+ < cnt: 3 | r: 1 | N:Nat | TOML:TOMsgList | PL:ProcList | GML:GMsgList > .
+
+--- test rrepsend
+--- search [2] init3 =>+ < cnt: 3 | r: 1 | N:Nat | TOML:TOMsgList | PL:ProcList | GML:GMsgList > such that repIn?(GML:GMsgList) .
+
+--- test srepmsgcollect and srepsend
+--- search [2] init3 =>+ 
+--- <
+--- 	cnt: 3 | 
+--- 	r: 1 | 
+--- 	N:Nat | 
+--- 	TOML:TOMsgList | 
+--- 	P[PidA:Nat | AgrSeqA:Nat | PropSeqA:Nat | 1 | TOMnil | M[MId:Nat | MSrc:Nat | MSeq:Nat | MProp:Nat] :M: HoldbackA:MsgList] :PP: PLiA:ProcList |
+--- 	GML:GMsgList
+--- > such that propGetAll?(genIncList(3), M[MId:Nat | MSrc:Nat | MSeq:Nat | MProp:Nat], HoldbackA:MsgList) .
+
+--- test srepmsgsend
+--- search [2] init3 =>+ 
+--- <
+--- 	cnt: 3 | 
+--- 	r: 1 | 
+--- 	N:Nat | 
+--- 	TOML:TOMsgList | 
+--- 	P[PidA:Nat | AgrSeqA:Nat | PropSeqA:Nat | 1 | TOMnil | M[MId:Nat | MSrc:Nat | MSeq:Nat | 3] :M: HoldbackA:MsgList] :PP: PLiA:ProcList |
+--- 	GML:GMsgList
+--- > such that propGetAll?(genIncList(3), M[MId:Nat | MSrc:Nat | MSeq:Nat | 3], HoldbackA:MsgList) .
+
+--- test srepcollect
+--- search [2] init3 =>+ 
+--- <
+--- 	cnt: 3 | 
+--- 	r: 1 | 
+--- 	N:Nat | 
+--- 	TOML:TOMsgList | 
+--- 	P[PidA:Nat | AgrSeqA:Nat | PropSeqA:Nat | 1 | TOMnil | M[MId:Nat | MSrc:Nat | MSeq:Nat | Status:Nat] :M: HoldbackA:MsgList] :PP: PLiA:ProcList |
+--- 	GML:GMsgList
+--- > such that status3?(M[MId:Nat | MSrc:Nat | MSeq:Nat | Status:Nat]) and not(MSrc:Nat == PidA:Nat) .
+
+--- rew [1]
+--- <
+--- 	cnt: 3 | 
+--- 	r: 1 | 
+--- 	1 | 
+--- 	M[0 | 0 | 0 | 3] | 
+--- 	P[0 | 3071714934 | 2357136044 | 1 | TOMnil | R[0 | 2357136045 | 0] :M: R[0 | 2546248240 | 1] :M: R[0 | 3071714934 | 2] :M: M[0 | 0 | 3071714934 | 3]] :PP:
+--- 		P[1 | 3071714934 | 2546248239 | 1 | TOMnil | M[0 | 0 | 3071714934 | 3] :M: Mnil] :PP: 
+--- 			P[2 | 0 | 3071714933 | 1 | TOMnil | M[0 | 0 | 3071714934 | 1]] | 
+--- 	S[0 | 3071714934 | 1] :GM: M[0 | 0 | 0 | 0]
+--- > .
+
+
+
+--- test deliver
+--- search [2] init3 =>+ 
+--- <
+--- 	cnt: 3 | 
+--- 	r: 1 | 
+--- 	N:Nat | 
+--- 	TOML:TOMsgList | 
+--- 	P[PidA:Nat | AgrSeqA:Nat | PropSeqA:Nat | 1 | DEL:TOMsgList | HoldbackA:MsgList] :PP: PLiA:ProcList |
+--- 	GML:GMsgList
+--- > such that not(TOMnil =TOMsg DEL:TOMsgList) .
+
+--- search [1,1000] init3 =>*
+--- <
+--- 	cnt: 3 | 
+--- 	r: 1 | 
+--- 	2 | 
+--- 	M[0 | B:Nat | C:Nat | 3 | 3] :TOM: M[1 | D:Nat | E:Nat | 3 | 3] | 
+--- 	P[0 | AgrSeqA:Nat | PropSeqA:Nat | 1 | DELA:TOMsgList | HoldbackA:MsgList] :PP:
+--- 	P[1 | AgrSeqB:Nat | PropSeqB:Nat | 1 | DELB:TOMsgList | HoldbackB:MsgList] :PP:
+--- 	P[2 | AgrSeqC:Nat | PropSeqC:Nat | 1 | DELC:TOMsgList | HoldbackC:MsgList] |
+--- 	GML:GMsgList
+--- > such that 
+--- 	not((compGlobAndDel((M[0 | B:Nat | C:Nat | 3 | 3] :TOM: M[1 | D:Nat | E:Nat | 3 | 3]), DELB:TOMsgList))) .
+
+search [1] init3 =>+
+<
+	cnt: 3 | 
+	r: 1 | 
+	1 | 
+	M[0 | B:Nat | C:Nat | 3 | 3] | 
+	P[PidA:Nat | AgrSeqA:Nat | PropSeqA:Nat | 1 | DELA:TOMsgList | HoldbackA:MsgList] :PP:
+	PLiA:ProcList |
+	GML:GMsgList
+> such that not(DELA:TOMsgList =TOMsg TOMnil).
+
+rew [20] init3 .

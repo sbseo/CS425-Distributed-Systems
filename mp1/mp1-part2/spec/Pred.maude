@@ -1,0 +1,5 @@
+load Process.maude
+
+fmod PREDS is
+	protecting PROCESS .
+endfm

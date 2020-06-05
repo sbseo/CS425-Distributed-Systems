@@ -1,0 +1,83 @@
+load Message.maude
+
+fmod PROCESS is
+	protecting MESSAGE .
+
+	sorts Proc .
+	--- sorts AgrSeq NeAgrSeq .
+	--- sorts PropSeq NePropSeq .
+	sorts MsgList NeMsgList .
+	sorts TOMsgList NeTOMsgList .
+	sorts HoldBack NeHoldBack .
+	--- subsorts Nat < AgrSeq < NeAgrSeq .
+	--- subsorts Nat < PropSeq < NePropSeq .
+	subsorts AllMsg < MsgList < NeMsgList .
+	subsorts AllMsg < TOMsgList < NeTOMsgList .
+	--- subsorts Msg < HoldBack < NeHoldBack .
+
+	--- --- Agreed List of Sequence numbers
+	--- op Anil : -> AgrSeq [ctor] .
+    --- op _:A:_ : AgrSeq AgrSeq -> AgrSeq [ctor comm assoc id: Anil] .
+    --- op _:A:_ : NeAgrSeq AgrSeq -> NeAgrSeq [ctor ditto] .
+	--- op _:A:_ : AgrSeq NeAgrSeq -> NeAgrSeq [ctor ditto] .
+	
+	--- --- Proposed List of Sequence numbers
+	--- op Pnil : -> PropSeq [ctor] .
+    --- op _:P:_ : PropSeq PropSeq -> PropSeq [ctor comm assoc id: Pnil] .
+    --- op _:P:_ : NePropSeq PropSeq -> NePropSeq [ctor ditto] .
+	--- op _:P:_ : PropSeq NePropSeq -> NePropSeq [ctor ditto] .
+
+	--- List of messages
+	op Mnil : -> MsgList [ctor] .
+    op _:M:_ : MsgList MsgList -> MsgList [ctor comm assoc id: Mnil] .
+    op _:M:_ : NeMsgList MsgList -> NeMsgList [ctor ditto] .
+	op _:M:_ : MsgList NeMsgList -> NeMsgList [ctor ditto] .
+	
+	--- TO List of messages
+	op TOMnil : -> TOMsgList [ctor] .
+	op _:TOM:_ : TOMsgList TOMsgList -> TOMsgList [ctor assoc id: TOMnil] .
+	op _:TOM:_ : NeTOMsgList TOMsgList -> NeTOMsgList [ctor ditto] .
+	op _:TOM:_ : TOMsgList NeTOMsgList -> NeTOMsgList [ctor ditto] .
+
+	--- Process constructor
+	--- Parameters
+	--- 	Pid: Process ID
+	--- 	Nat: Largest agreed sequence number
+	--- 	Nat: Proposed sequence number
+	--- 	Nat: 0 if proposed seq number has not yet been assigned 1 o/w
+	--- 	TOMsgList: This represents all delivered messages
+	--- 	MsgList: This represents the holdback Queue, which can contain 
+	--- 	both replies from receivers, and messages to deliver to the application
+	--- Returns
+	--- 	A process
+	op P[_|_|_|_|_|_] : Nat Nat Nat Nat TOMsgList MsgList -> Proc [ctor] .
+
+	op _=TOMsg_ : TOMsgList TOMsgList -> Bool .
+	op lenTOMsgList(_) : TOMsgList -> Nat .
+	op remMsg(_,_) : MsgList MsgList -> MsgList .
+
+	var MA MB : Msg .
+	var AMA AMB : AllMsg .
+	var TOMLiA TOMLiB : TOMsgList .
+	var MLiA MLiB : MsgList .
+	
+	eq TOMnil =TOMsg TOMnil = true .
+	eq TOMnil =TOMsg TOMLiA = false .
+	eq TOMLiA =TOMsg TOMnil = false .
+	eq (MA :TOM: TOMLiA) =TOMsg (MB :TOM: TOMLiB) =
+		if MA =M MB then
+			true and (TOMLiA =TOMsg TOMLiB)
+		else
+			false
+		fi .
+
+	eq remMsg(Mnil, MLiA) = MLiA .
+	eq remMsg(Mnil, Mnil) = Mnil .
+	eq remMsg(AMA, Mnil) = Mnil .
+	eq remMsg(AMA, AMA :M: MLiB) = MLiB .
+	eq remMsg(AMA, AMB :M: MLiB) = AMB :M: remMsg(AMA, MLiB) .
+	--- eq remTOMsg(AMA, AMB :TOM: TOMLiB) = AMB :TOM: remTOMsg(AMA, TOMLiB) .
+
+	eq lenTOMsgList(TOMnil) = 0 .
+	eq lenTOMsgList(AMA :TOM: TOMLiA) = 1 + lenTOMsgList(TOMLiA) .
+endfm

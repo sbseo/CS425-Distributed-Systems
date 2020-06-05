@@ -1,0 +1,5 @@
+# OS generated files #
+######################
+/.ipynb_checkpoints/*
+/__pycache__/*
+test.py

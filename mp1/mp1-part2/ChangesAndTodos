@@ -1,0 +1,131 @@
+CHANGES
+account.py
+	Account Class
+		- accountId was initialized to None because -1 may be generated as a hash
+		- balance should be a value
+		- added update balance function
+
+message.py
+	Message Class
+		- source, proposedSeq were initialized to None for the same
+		reasons as above
+		- moved messageId to the top level as all types of messages have it.
+		- changed content to be 3 fields
+			- depost/transfer
+			- source account
+			- target account
+
+		ReceiverReply Clas
+			- messageId initialization was changed to None for the same reasons as
+			described above
+
+		SenderReply Class
+			- messageId initialization was changed to None for the same reasons as
+			described above
+
+process.py
+	- Added class
+
+TODOS
+process.py
+	- NOTE: The delivered field is not needed, its there only for debugging if we
+	want to check the order things are delivered in
+	- pid numbers should be assigned the VM number
+		=> Checked
+	- createAllSockets: A method that will modify our sockets dictionary
+		{pid: socket struct}
+		This should closely mimick MP0
+	- sorting function to reorder holdback and delivered
+		- called after sendSenderReply
+		- After this we need to deliver the messages
+	- sendMessages needs to call send() to all the sockets that we have
+	- recvReceiverReply
+	- sendSenderReply
+
+General things
+	- Need to figure out if Thread(target=p.func, args=()) is possible
+			=> For now, I used Thread(target=func, args=(p, )) instead. Let's see whether this would work
+		- start a thread for a specific instance of a class and its member function 
+			=> Checked
+		- Threads we need per process
+			- 1 for read from stdin and send message
+				"""
+					string = readFromStdIn()
+					p.sendMessage(string)
+				"""
+				=> Checked
+			- N - 1 threads on each listening to replies from N processes
+	- Sockets needed: The below proposal is probably simpler as we don't need to do
+	two way communication on the same channel
+		- 2(N - 1)
+			- N - 1: Used by 1 thread to send
+			- N - 1: Used by N - 1 threads to receive
+	- Set up semaphores/mutex on all data structures
+		- Idea: If there is a writer, cannot read, otherwise allow infinite reads
+			- If thre is a writer, queue all other writes or reads
+		- Example of semaphores here https://github.com/kamciokodzi/rpc-semaphore
+			- Basic concept should still be usable even though its set up with rpc
+		- Or use built in mutex in python
+
+
+3/4/20
+
+CHANGES
+message.py
+	- added fields
+		- isRRep
+		- isSRep
+		- RRepCounter
+		- numOtherProc: The number of other processes in our system
+	- preprocess
+		- MessageId is a randomly generated hash
+		- fixed bugs
+	
+	- sendMessage changed to createNewMessage (untested)
+	- createReceiverReply (untested)
+	- createSenderReply (untested)
+	- recvMessage (untested)
+	- recvReceiverReply (untested)
+	- recvSenderReply (untested)
+
+TODOs
+message.py
+	- need locks at inner level or at top level
+		- createNewMessage
+			- need to account for negative deposits
+		- createReceiverReply
+		- createSenderReply
+	- when do we check to deliver?
+
+main.py
+	- we probably need to use pick to inorder to send the message as a byte stream
+	- integrate all the shit
+	- need to add a thread to check if deliverable at all times?
+	- assign numOtherProc
+
+isis.py
+	- make sure it works
+
+3/5/20
+CHANGES 
+	main.py
+		- Added read from std in thread
+		- added queues for send thread to read from
+
+
+
+##############################
+- Test deposit
+DEPOSIT n 10
+
+- Test negative balance transfer with existing acc
+DEPOSIT n 10
+DEPOSIT m 10
+TRANSFER n -> m 20
+
+
+
+
+
+
+########## FIX SEQUENCE NUMBERS USE TUPLES

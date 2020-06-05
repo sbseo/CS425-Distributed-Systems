@@ -1,0 +1,66 @@
+load Account.maude
+
+fmod MESSAGE is
+	protecting ACCOUNT .
+	--- protecting INT .
+
+	sorts Msg RRep SRep AllMsg .
+	sorts OpType Source Target Amount MsgId .
+	subsorts Msg RRep SRep < AllMsg .
+	subsorts Amount < Int .
+
+	--- Operation Type constructor
+	op dep : -> OpType [ctor] .
+	op tran : -> OpType [ctor] .
+
+	--- Message constructor
+	--- Description 
+	--- 	This is the message (deposit or trans)
+	--- Parameters
+	--- 	Nat: Actual total ordering number
+	--- 	Nat: Source of a msg
+	--- 	Nat: Seq num we assign
+	--- 	Nat: There are three cases
+	--- 		0. Not yet assigned sequence number (as a receiver)
+	--- 		1. Assigned a temporary sequence number (as a receiver/sender)
+	--- 		2. Not yet assigned a sequence number (sender)
+	--- 		3. Finalized a sequence number (both sender and receiver)
+	--- 	Nat: The number of times this has been pulled from the global message queu
+	--- 		once this is equal to the number of processes remove from global message queue
+	op M[_|_|_|_|_] : Nat Nat Nat Nat Nat -> Msg [ctor] .
+
+	--- Receiver reply constructor
+	--- Description
+	--- 	This is the reply a receiver sends back to determine
+	--- 	the sequence numbers for a message from a process
+	--- Parameters
+	--- 	Nat: The message id this specific reply is for
+	--- 	Nat: Sequence number
+	--- 	Nat: This is the process identifier as multiple
+	--- 		processes may send the same number
+	--- Returns
+	--- 	RRep: Receiver's reply
+	op R[_|_|_] : Nat Nat Nat -> RRep [ctor] .
+
+	--- Sender Reply Constructor
+	--- Description
+	--- 	This is the reply a sender multicasts to
+	--- 	help other processes to update their sequence
+	--- 	number and get the largest one
+	--- Parameters
+	--- 	Nat: The message id this specific reply is for
+	--- 	Nat: Largest sequence number chosen from all the RRep
+	--- 	Nat: Debug value used to make the GMList easier to read
+	--- 		once this number hits the number of processes we can
+	--- 		remove this message from the GMList
+	--- Returns
+	--- 	SRep: The message we wish to multicast containing the largest
+	--- 	sequence number for a message
+	op S[_|_|_] : Nat Nat Nat -> SRep [ctor] .
+
+	op _=M_ : Msg Msg -> Bool .
+
+	vars N M O P Q R S T U V : Nat .
+	eq (M[N | M | O | P | Q]) =M (M[N | M | O | P | Q]) = true .
+	eq (M[N | M | O | P | Q]) =M (M[R | S | T | U | V]) = false [owise] .
+endfm

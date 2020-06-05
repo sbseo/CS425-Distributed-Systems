@@ -1,0 +1,22 @@
+load Support.maude
+
+fmod ACCOUNT is
+	protecting SUPPORT .
+	
+	sorts Acc AccId Balance .
+	sorts AccList NeAccList .
+	subsorts AccId Balance < Nat .
+	subsorts Acc < NeAccList < AccList .
+
+	--- Account constructor
+	--- Parameters:
+	--- 	AccId: Account Id
+	--- 	Balance: The balance in the account
+	op A[_|_] : AccId Balance -> Acc [ctor] .
+
+	--- Account list
+	op ACnil : -> AccList [ctor] .
+	op _:AC:_ : AccList AccList -> AccList [ctor assoc comm id: ACnil] .
+	op _:AC:_ : AccList NeAccList -> NeAccList [ctor ditto] .
+	op _:AC:_ : NeAccList AccList -> NeAccList [ctor ditto] .
+endfm

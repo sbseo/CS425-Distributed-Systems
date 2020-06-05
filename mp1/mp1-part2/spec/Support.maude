@@ -1,0 +1,53 @@
+fmod BASE is
+	protecting NAT .
+	protecting INT .
+	protecting BOOL .
+endfm
+
+fmod NATUTIL is 
+	protecting BASE .
+
+	op max2(_,_) : Nat Nat -> Nat .
+	
+	var N M : Nat .
+	
+	eq max2(N, M) =
+		if (N > M) then
+			N
+		else
+			M
+		fi .
+endfm
+
+fmod NATLIST is
+	protecting NATUTIL .
+
+	sorts NatList NeNatList .
+	subsorts Nat < NeNatList < NatList .
+
+	op Nnil : -> NatList [ctor] .
+	op __ : NatList NatList -> NatList [ctor assoc comm id: Nnil] .
+	op __ : NeNatList NatList -> NeNatList [ctor ditto] .
+	op __ : NatList NeNatList -> NeNatList [ctor ditto] .
+
+	sorts TONatList TONeNatList .
+	subsorts Nat < TONeNatList < TONatList .
+
+	op TONnil : -> TONatList [ctor] .
+	op _;_ : TONatList TONatList -> TONatList [ctor assoc id: TONnil] .
+	op _;_ : TONeNatList TONatList -> TONeNatList [ctor ditto] .
+	op _;_ : TONatList TONeNatList -> TONeNatList [ctor ditto] .
+
+	op genIncList(_) : Nat -> NatList .
+
+	var N : Nat .
+
+	eq genIncList(Nnil) = Nnil .
+	eq genIncList(0) = Nnil .
+	eq genIncList(N) = (N - 1) genIncList(N - 1) .
+endfm
+
+
+fmod SUPPORT is
+	protecting NATLIST .
+endfm

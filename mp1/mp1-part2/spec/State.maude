@@ -1,0 +1,622 @@
+load Process.maude
+
+fmod STATE is
+	protecting PROCESS .
+	
+	sorts State .
+	sorts GMsgList NeGMsgList .
+	sorts NeProcList ProcList .
+	
+	subsorts Proc < NeProcList < ProcList .
+	subsorts AllMsg < NeGMsgList < GMsgList .
+
+	op GMnil : -> GMsgList [ctor] .
+	op _:GM:_ : GMsgList GMsgList -> GMsgList [ctor comm assoc id: GMnil] .
+	op _:GM:_ : NeGMsgList GMsgList -> NeGMsgList [ctor ditto] .
+	op _:GM:_ : GMsgList NeGMsgList -> NeGMsgList [ctor ditto] .
+
+    op PPnil : -> ProcList [ctor] .
+    op _:PP:_ : ProcList ProcList -> ProcList [ctor comm assoc id: PPnil] .
+    op _:PP:_ : NeProcList ProcList -> NeProcList [ctor ditto] .
+	op _:PP:_ : ProcList NeProcList -> NeProcList [ctor ditto] .
+
+	--- State Constructor
+	--- Parameters
+	--- 	Nat: Counter used for generating rand (ignore in Python)
+	--- 	Nat: Finished assigning random props then 1 else 0 (ignore in Python)
+	--- 	Nat: Global Message ID used to generate a unique
+	--- 		ID for the next message generated
+	--- 	TOMsgList: Global Message List for use of comparison for total ordering
+	--- 	ProcList: The list of all our processes in the system
+	--- 	GMsgList: This is the "soup" representing all the channels
+	--- 		all messages sent M/R will be placed here until a process acts on it
+	op < cnt: _| r: _|_|_|_|_> : Nat Nat Nat TOMsgList ProcList GMsgList -> State [ctor] .
+	--- This pauses our distributed system
+	op [cnt: _| r: _|_|_|_|_] : Nat Nat Nat TOMsgList ProcList GMsgList -> State [ctor] .
+
+	--- Assign a random number for the proposed sequence number of a process
+	--- Parameters
+	--- 	Nat: Input random number
+	--- 	Proc: Process to be changed
+	--- Returns
+	--- 	Proc: Edited process
+	op propGen(_,_) : Nat Proc -> Proc .
+	
+	vars N M O : Nat .
+	vars PidA AgrA PropA : Nat .
+	vars DeliveredA : TOMsgList .
+	vars HoldbackA : MsgList .
+
+	eq propGen(N, P[PidA | AgrA | PropA | 0 | DeliveredA | HoldbackA]) = 
+		P[PidA | AgrA | N | 1 | DeliveredA | HoldbackA] .
+	eq propGen(N, P[PidA | AgrA | PropA | 1 | DeliveredA | HoldbackA]) = P[PidA | AgrA | PropA | 1 | DeliveredA | HoldbackA] .
+
+	--- Initial state for 3 nodes, used for testing
+	op init3 : -> State .
+	eq init3 = 
+		< 
+			cnt: 0 | 
+			r: 0 | 
+			0 | 
+			TOMnil | 
+			P[0 | 0 | 0 | 0 | TOMnil | Mnil] :PP: 
+				P[1 | 0 | 0 | 0 | TOMnil | Mnil] :PP:
+				P[2 | 0 | 0 | 0 | TOMnil | Mnil] | 
+			GMnil
+		> .
+endfm
+
+fmod PROPS is
+	protecting STATE .
+
+	--- Check if a process list has all been assigned proposed sequence numbers
+	--- Parameters
+	--- 	ProcList: The list of processes to be checked
+	--- Returns
+	--- 	Bool: True if all assigned, else false
+	op propGen?(_) : ProcList -> Bool .
+
+	--- Check if a message is of type RRep
+	--- Parameters
+	--- 	AllMsg: Message to check
+	--- Returns
+	--- 	Bool: If input message is of type RRep return true else false
+	op isR?(_) : AllMsg -> Bool .
+
+	--- Check if a message is of type Msg
+	--- Parameters
+	--- 	AllMsg: Message to check
+	--- Returns
+	--- 	Bool: If input message is of type RRep return true else false
+	op isM?(_) : AllMsg -> Bool .
+
+	--- Check if a message is of type SRep
+	--- Parameters
+	--- 	AllMsg: Message to check
+	--- Returns
+	--- 	Bool: If input message is of type RRep return true else false
+	op isS?(_) : AllMsg -> Bool .
+
+	--- Check if Msg non-ordered contains no RRep messages
+	--- Paramters
+	--- 	MsgList: Input message list
+	--- Returns
+	--- 	Bool: True if no RRep messages else false
+	op noR?(_) : MsgList -> Bool .
+
+	--- Given a message list extract all RRep messages
+	--- Parameters
+	--- 	MsgList:
+	--- Returns
+	--- 	MsgList:
+	op getR(_) : MsgList -> MsgList .
+
+	--- Given a message list extract all RRep messages
+	--- Parameters
+	--- 	MsgList:
+	--- Returns
+	--- 	MsgList:
+	op getM(_) : MsgList -> MsgList .
+
+	--- Check if given a global message list and a message, if the list contains
+	--- all the recived proposed sequence numbers from all processes for a specific message
+	--- Parameters
+	--- 	NatList: An increasing list from 0 that represents all process IDs to check
+	--- 	Msg: The message we are checking if we got all receiver replies for
+	--- 	MsgList: In our case this is the holdback list
+	op propGetAll?(_,_,_) : NatList Msg MsgList -> Bool .
+	--- op propGetAllHelper?(_,_,_) : NatList Msg AllMsg -> Bool .
+
+	--- Grab the largest sequence number given a message in a holdback list
+	--- NOTE: This requires for propGetAll? to be true
+	--- Parameters
+	--- 	Nat: The message ID to be checked
+	--- 	Nat: The initial beginning number (0 if a receiver else sender's own Prop)
+	--- 	MsgList: Holdback list (containing only RRep)
+	--- Returns
+	--- 	Nat: The largest sequence number
+	op getLargestSeqNum(_,_,_) : Nat Nat MsgList -> Nat .
+
+	--- Check the smallest sequenced Msg in the Holdback queue
+	--- If it has status 3 (assigned correct seq num)
+	--- we can deliver it to the delivered list
+	--- Parameters
+	--- 	MsgList: The holdback queue we wish to check
+	--- Returns
+	--- 	Bool: True if the smallest message is ready to be delivered (3)
+	op deliverReady?(_) : MsgList -> Bool .
+
+	--- Get the smallest sequenced Msg in a list
+	--- Parameters
+	--- 	MsgList: This is the current smallest seq Msg
+	--- 	MsgList: The Msg only queue we are checking
+	--- Returns
+	--- 	Msg: The smallest sequenced Msg
+	op getSmallestSeqMsg(_,_) : MsgList MsgList -> Msg .
+
+	--- Checks if the status of a msg is 3
+	op status3?(_) : Msg -> Bool .
+
+	--- Check if the global message queue matches a process's delivered list
+	op compGlobAndDel(_,_) : TOMsgList TOMsgList -> Bool .
+
+	--- Check if the soup already contains a reply with a specific message id and pid
+	op dupR?(_,_) : GMsgList RRep -> Bool .
+
+	--- DEBUGGING PURPOSES
+	--- Check if Replies are in the list
+	op repIn?(_) : MsgList -> Bool .
+
+	vars PLiA : ProcList .
+	vars A B C D E N M O P Q R S T U V Prop? : Nat .
+	vars PidA AgrA PropA : Nat .
+	vars DeliveredA : TOMsgList .
+	vars HoldbackA : MsgList .
+
+	vars MA : Msg .
+	vars AMA AMB : AllMsg .
+	vars GMA : GMsgList .
+
+	vars NLiA : NatList .
+	vars NELiA : NeNatList .
+
+	vars TOMLiA TOMLiB : TOMsgList .
+	vars NeTOMLiA NeTOMLiB : NeTOMsgList .
+
+	eq propGen?(PPnil) = true .
+	eq propGen?(P[PidA | AgrA | PropA | Prop? | DeliveredA | HoldbackA] :PP: PLiA) =
+		if Prop? == 0 then
+			false
+		else
+			true and propGen?(PLiA)
+		fi .
+
+	eq isR?(R[N | M | O]) = true .
+	eq isR?(M[N | M | O | P | Q]) = false .
+	eq isR?(S[N | M | O]) = false .
+
+	eq isM?(R[N | M | O]) = false .
+	eq isM?(M[N | M | O | P | Q]) = true .
+	eq isM?(S[N | M | O]) = false .
+
+	eq isS?(R[N | M | O]) = false .
+	eq isS?(M[N | M | O | P | Q]) = false .
+	eq isS?(S[N | M | O]) = true .
+
+	eq getR(Mnil) = Mnil .
+	eq getR(AMA :M: HoldbackA) =
+		if isR?(AMA) then
+			AMA :M: getR(HoldbackA)
+		else
+			getR(HoldbackA)
+		fi .
+	
+	eq getM(Mnil) = Mnil .
+	eq getM(AMA :M: HoldbackA) =
+		if isM?(AMA) then
+			AMA :M: getM(HoldbackA)
+		else
+			getM(HoldbackA)
+		fi .
+
+
+	eq propGetAll?(Nnil, M[M | O | P | Q | R], Mnil) = true .
+	eq propGetAll?(NELiA, M[M | O | P | Q | R], Mnil) = false .
+	eq propGetAll?(N NLiA, M[M | O | P | Q | R], R[S | T | U] :M: HoldbackA) = 
+		--- same message id and same process id
+		if (N == U) and (M == S) then
+			true and propGetAll?(NLiA, M[M | O | P | Q | R], HoldbackA)
+		--- not the same message
+		else if not(M == S) then
+			true and propGetAll?(N NLiA, M[M | O | P | Q | R], HoldbackA)
+		else
+			false
+		fi
+		fi .
+	
+	--- We have checked all RRep messages return the largest
+	eq getLargestSeqNum(N, M, Mnil) = M .
+	eq getLargestSeqNum(N, M, R[O | P | Q] :M: HoldbackA) = 
+		--- Identified correct message, and current RRep seq is
+		--- larger than current identified value
+		if N == O and P > M then
+			getLargestSeqNum(N, P, HoldbackA)
+		--- Either we have not identified the message
+		--- or we have identified the correct message and
+		--- the RRep has a smaller sequence number
+		else
+			getLargestSeqNum(N, M, HoldbackA)
+		fi .
+
+	eq deliverReady?(Mnil) = false .
+	eq deliverReady?(HoldbackA) =
+		if status3?(getSmallestSeqMsg(Mnil, getM(HoldbackA))) then
+			true
+		else
+			false
+		fi .
+
+	--- Get the smallest sequenced Msg in a list
+	--- Parameters
+	--- 	MsgList: This is the current smallest seq Msg
+	--- 	MsgList: The holdback queue we are checking
+	--- Returns
+	--- 	Msg: The smallest sequenced Msg
+	--- op getSmallestSeqMsg(_,_) : MsgList MsgList -> Msg .
+	eq getSmallestSeqMsg(MA, Mnil) = MA .
+	eq getSmallestSeqMsg(Mnil, MA :M: HoldbackA) = getSmallestSeqMsg(MA, HoldbackA) .
+	eq getSmallestSeqMsg(M[N | M | O | P | Q], M[R | S | T | U | V] :M: HoldbackA) = 
+		if T < O then
+			getSmallestSeqMsg(M[R | S | T | U | V], HoldbackA)
+		else
+			getSmallestSeqMsg(M[R | S | T | U | V], HoldbackA)
+		fi .
+
+	eq status3?(M[N | M | O | 0 | P]) = false .
+	eq status3?(M[N | M | O | 1 | P]) = false .
+	eq status3?(M[N | M | O | 2 | P]) = false .
+	eq status3?(M[N | M | O | 3 | P]) = true .
+
+	eq compGlobAndDel(TOMLiA, TOMnil) = true .
+	--- eq compGlobAndDel(TOMnil, TOMLiA) = false .
+	eq compGlobAndDel(TOMLiA, TOMnil) = true .
+	eq compGlobAndDel(TOMnil, TOMLiA) = false .
+	eq compGlobAndDel(TOMnil, TOMnil) = true .
+	eq compGlobAndDel(M[A | B | C | D | E] :TOM: TOMLiA, M[Q | R | S | T | U] :TOM: TOMLiB) = 
+		if (A == Q) and (B == R) and (D == T) then
+			true and compGlobAndDel(TOMLiA, TOMLiB)
+		else
+			false
+		fi .
+	
+	eq dupR?(Mnil, R[P | Q | R]) = false .
+	eq dupR?(R[N | M | O] :M: HoldbackA, R[P | Q | R]) = 
+		if N == P and O == R then
+			true
+		else
+			dupR(GMA, R[P | Q | R])
+		fi .
+	
+	--- DEBUGGING PURPOSES
+	eq repIn?(R[N | M | O] :GM: GMA) = true .
+	eq repIn?(M[N | M | O | P | Q | R] :GM: GMA) = false .
+	eq repIn?(GMA) = false .
+endfm
+
+***(
+	The rewrite rules are described below
+
+	0. Before we run, we must initialize all processes with its own
+	proposed sequence number [DONE]
+
+	1. Process puts message in soup [DONE]
+		NOTE: We do not care about whether we create a new account
+		in this model.  This should be handled by the process itself
+		and we only need to model the message creation and message ordering.
+
+	2. Process replies to a new message with proposed sequence number [DONE]
+		Maybe need to also include checks to not duplicate adding messages to holdback and
+		spamming the Soup with replies.
+
+	3. Sender process collects replies from all other processes and choose the largest one.
+	Then the sender multicasts that number back. [DONE]
+
+	4. Process crashes [DONE]
+
+	5. Stop [DONE]
+
+	6. We need to "detect" a crash of a process.  If it has crashed we need for a process
+	to detect the crash.  Once it detects a crash then we can purge all the messages from
+	the crashed process in the holdback queue [DONE]
+
+	7. Process delivers a message to the application
+)
+
+mod BANK-TRANSFERS is
+	protecting RANDOM .
+	protecting COUNTER .
+	protecting PROPS .
+
+	--- random(N): Generates a different psuedo-random number per
+	--- 	input N
+	--- counter: Is a built in constant that increments everytime
+	--- 	it is called
+	--- NOTE: We must remember to "set clear rules off" in order for the state
+	--- of the counter to not be resert everytie
+	op rand : -> [Nat] .
+	op sample : Nat -> [Nat] .
+	rl rand => random(counter) .
+	rl sample(NN:Nat) => rand .
+
+	--- Variable declarations
+	vars CNT SRepCNT MCnt MCnt2 : Nat .
+	vars GMId : Nat .
+	vars GPid : Nat .
+	vars TO : TOMsgList .
+	vars Soup : GMsgList .
+
+	vars PA PB PC : Proc .
+	vars PLiA PLiB PLiC : ProcList .
+	vars PidA PidB Pid2 : Nat .
+
+	vars MId MId2 MSrc MSrc2 MSeq MSeq2 MProp MProp2 MPid MPid2 LargestSeq : Nat .
+
+	vars HoldbackA HoldbackB : MsgList .
+	vars MA : Msg .
+	vars DeliveredA DeliveredB : TOMsgList .
+	vars AgrSeqA PropSeqA AgrSeqB PropSeqB PropA? PropB? : Nat . 
+
+	--- 0. initialize each process with a random proposed sequence number
+	crl [randprop] : 
+		< 
+			cnt: CNT | 
+			r: 0 | 
+			0 | 
+			TOMnil | 
+			PA :PP: PLiA |
+			Soup
+		>
+		=>
+		< 
+			cnt: CNT + 1 | 
+			r: 0 | 
+			0 | 
+			TOMnil | 
+			propGen(random(CNT) , PA) :PP: PLiA |
+			Soup
+		>
+		if propGen?(PA) == false .
+	--- terminate the random generation process for proposed sequence numbers
+	crl [randpropdone] :
+		< 
+			cnt: CNT | 
+			r: 0 | 
+			0 | 
+			TOMnil | 
+			PLiA |
+			Soup
+		>
+		=>
+		< 
+			cnt: CNT | 
+			r: 1 | 
+			0 | 
+			TOMnil | 
+			PLiA |
+			Soup
+		>
+		if propGen?(PLiA) == true .
+
+	--- 1. New message placed in soup by a process for an existing account
+	rl [msg] : 
+		< 
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA ] :PP: 
+				PLiA |
+			Soup 
+		> 
+		=>
+		< 
+			cnt: CNT | 
+			r: 1 | 
+			GMId + 1 | 
+			TO :TOM: M[GMId | PidA | 0 | 3 | CNT] | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA :M: 
+					M[GMId | PidA | max2(AgrSeqA, PropSeqA) + 1 | 2 | CNT] :M: 
+					R[GMId | max2(AgrSeqA, PropSeqA) + 1 | PidA]] :PP:
+				PLiA |
+			Soup :GM: M[GMId | PidA | 0 | 0 | 1]
+		> .
+	--- rl [msgdel] :
+	--- 	< 
+	--- 		cnt: CNT | 
+	--- 		r: 1 | 
+	--- 		GMId | 
+	--- 		TO | 
+	--- 		P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA] :PP:
+	--- 			PLiA |
+	--- 		Soup :GM: M[GMId | PidA | 0 | 0 | 3]
+	--- 	>
+	--- 	=>
+	--- 	< 
+	--- 		cnt: CNT | 
+	--- 		r: 1 | 
+	--- 		GMId | 
+	--- 		TO | 
+	--- 		P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA :M: 
+	--- 				M[GMId | PidA | 0 | 2 | CNT] :M: 
+	--- 				R[GMId | max2(AgrSeqA, PropSeqA) + 1 | PidA]] :PP:
+	--- 			PLiA |
+	--- 		Soup
+	--- 	> .
+	
+	--- 2. Receiver Reply
+	--- A sender cannot reply to itself
+	--- We cannot send a duplicate reply into the soup
+	--- 	different message id
+	--- 	different receiver process
+	crl [rrepmsg] :
+		<
+			cnt: CNT |
+			r: 1 |
+			GMId |
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA ] :PP:
+				PLiA |
+			Soup :GM: M[MId | MSrc | 0 | 0 | MCnt]
+		>
+		=>
+		<
+			cnt: CNT |
+			r: 1 |
+			GMId |
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA :M: M[MId | MSrc | max2(AgrSeqA, PropSeqA) + 1 | 1 | MCnt]] :PP:
+				PLiA |
+			Soup :GM: M[MId | MSrc | 0 | 0 | MCnt + 1] :GM: R[MId | max2(AgrSeqA, PropSeqA) + 1 | PidA]
+		> 
+		if (PidA == MSrc) == false and not(dupR?(getR(Soup), R[MId | max2(AgrSeqA, PropSeqA) + 1 | PidA])) .
+	
+	--- 3. Sender Reply
+	--- Collect relevant receiver replies
+	--- MId must match, the last field of message must be 2 (you are sender), and the seq and matched numbers must be 0
+	rl [srepmsgcollect] : 
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA :M: M[MId | MSrc | 0 | 2 | MCnt]] :PP:
+				PLiA |
+			Soup :GM: R[MId | MProp | MPid]
+		>
+		=>
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA |  M[MId | MSrc | 0 | 2 | MCnt] :M: HoldbackA :M: R[MId | MProp | MPid]] :PP: PLiA | 
+			Soup
+		> .
+	--- Send relevant sender replies
+	--- Check that the sender has received all replies from all processes
+	--- Update the sender's own message with the max sequence number
+	--- Multicast the message's maximum with the largest sequence number [TODO]
+	--- Update sender's largest sequence number for the message [TODO]
+	crl [srepmsgsend] :
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA |  M[MId | PidA | MSeq | 2 | MCnt] :M: HoldbackA] :PP: PLiA |
+			Soup
+		>
+		=>
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | getLargestSeqNum(MId, 0, getR(HoldbackA)) | PropSeqA | PropA? | DeliveredA | 
+					M[MId | PidA | getLargestSeqNum(MId, 0, getR(HoldbackA)) | 3 | MCnt] :M: HoldbackA] 
+				:PP: PLiA | 
+			Soup :GM: S[MId | getLargestSeqNum(MId, 0, getR(HoldbackA)) | 0]
+		> if propGetAll?(genIncList(CNT), M[MId | PidA | MSeq | 2 | MCnt], HoldbackA) == true .
+
+	--- 5. srepcollect
+	--- The SRep is checked by a process and the message in the holdback queue is assigned
+	rl [srepcollect] :
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA |  M[MId | MSrc | MSeq | 1 | MCnt] :M: HoldbackA] :PP: PLiA | 
+			Soup :GM: S[MId | LargestSeq | SRepCNT]
+		>
+		=>
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | max2(AgrSeqA, LargestSeq) | PropSeqA | PropA? | DeliveredA |  M[MId | MSrc | LargestSeq | 3 | MCnt] :M: HoldbackA] :PP: PLiA | 
+			Soup :GM: S[MId | LargestSeq | SRepCNT + 1]
+		> .
+
+	--- 6. [DEBUG] sreprem
+	--- After each process obtains its SRep for a message, we remove it from the soup
+	rl [sreprem] :
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA |  M[MId | MSrc | MSeq | 1 | MCnt] :M: HoldbackA] :PP: PLiA | 
+			Soup :GM: S[MId | LargestSeq | CNT]
+		>
+		=>
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA |  M[MId | MSrc | MSeq | 1 | MCnt] :M: HoldbackA] :PP: PLiA | 
+			Soup
+		> .
+
+	--- 6. Deliver
+	--- Process checks if minimum seq num in holdback queue has received a seq num
+	--- if so add to delivered list
+	--- crl [deliver] :
+	--- 	<
+	--- 		cnt: CNT | 
+	--- 		r: 1 | 
+	--- 		GMId | 
+	--- 		TO | 
+	--- 		P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA] :PP: PLiA | 
+	--- 		Soup
+	--- 	>
+	--- 	=>
+	--- 	<
+	--- 		cnt: CNT | 
+	--- 		r: 1 | 
+	--- 		GMId | 
+	--- 		TO | 
+	--- 		P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA :TOM: getSmallestSeqMsg(Mnil, getM(HoldbackA)) | remMsg(getSmallestSeqMsg(Mnil, getM(HoldbackA)), HoldbackA)] :PP: PLiA | 
+	--- 		Soup
+	--- 	> if deliverReady?(HoldbackA) .
+
+	crl [deliver] :
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA | HoldbackA] :PP: PLiA | 
+			Soup
+		>
+		=>
+		<
+			cnt: CNT | 
+			r: 1 | 
+			GMId | 
+			TO | 
+			P[PidA | AgrSeqA | PropSeqA | PropA? | DeliveredA :TOM: getSmallestSeqMsg(Mnil, getM(HoldbackA)) | HoldbackA] :PP: PLiA | 
+			Soup
+		> if deliverReady?(HoldbackA) .
+		
+
+
+	--- Randomly crash a process
+	--- 	Delete process PA from our process list
+	--- rl [crash] : < GMId | GPid | TO | PA :PP: PLiA | Soup > => < GMId | GPid | TO | PLiA | Soup > .
+
+	--- Stop
+	--- rl [stop] : < GMId | GPid | TO | PLiA | Soup > => [ GMId | GPid | TO | PLiA | Soup ] .
+endm
